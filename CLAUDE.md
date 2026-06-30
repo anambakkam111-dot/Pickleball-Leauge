@@ -15,7 +15,7 @@ A responsive single-page web app for running a family/friends pickleball doubles
 | `pickleball-league-v1` | `League { teams, matches }` |
 | `pickleball-ratings-v1` | `PlayerRating[]` (private, never shown on public pages) |
 
-Note: `pickleball-admin-v1` is no longer written. Admin authentication is now fully server-side.
+Admin authentication is fully server-side (see Admin Auth Flow below) — no admin-related key is ever written to localStorage.
 
 ## Data Model
 
@@ -81,7 +81,6 @@ src/
     matchups.ts              — generateRoundRobin, generateCustomSchedule
     standings.ts             — calculateStandings with proper group-tiebreak logic
     teamGen.ts               — generateBalancedPairs (tier+random), pairsToTeams
-    adminAuth.ts             — hashPassword, verifyPassword (unused, kept for reference)
     csv.ts                   — matchesToCSV, standingsToCSV, downloadCSV
   components/
     Nav.tsx                  — 6-tab nav (exports Tab type): home|teams|schedule|standings|history|admin

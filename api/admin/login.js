@@ -16,10 +16,13 @@
 // visitor's browser. Anyone who opens DevTools can read their own browser's
 // localStorage. For true data privacy, ratings should be moved to a backend
 // database in a future iteration.
+//
+// NOTE: package.json has "type": "module", so Vercel's Node.js runtime loads
+// this file as ESM — it must use import/export, not require()/module.exports.
 
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function handler(req, res) {
+export default function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -33,7 +36,8 @@ module.exports = function handler(req, res) {
   const envPlain = process.env.ADMIN_PASSWORD ?? '';
 
   if (!envHash && !envPlain) {
-    return res.status(503).json({
+    console.error('[admin/login] ADMIN_PASSWORD / ADMIN_PASSWORD_HASH not set');
+    return res.status(500).json({
       error: 'Admin not configured. Set ADMIN_PASSWORD or ADMIN_PASSWORD_HASH on the server.',
     });
   }
@@ -67,7 +71,7 @@ module.exports = function handler(req, res) {
 
   res.setHeader('Set-Cookie', cookieParts.join('; '));
   return res.status(200).json({ ok: true });
-};
+}
 
 // Constant-time string comparison to prevent timing attacks.
 function safeEqual(a, b) {

@@ -1,10 +1,13 @@
 // Vercel serverless function: GET /api/admin/session
 // Returns { authenticated: true } if the request carries a valid session cookie.
 // The browser never learns the cookie value — it is HttpOnly.
+//
+// NOTE: package.json has "type": "module", so Vercel's Node.js runtime loads
+// this file as ESM — it must use import/export, not require()/module.exports.
 
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function handler(req, res) {
+export default function handler(req, res) {
   const token = parseCookie(req.headers.cookie ?? '', 'admin_session');
   if (!token) {
     return res.status(200).json({ authenticated: false });
@@ -15,6 +18,7 @@ module.exports = function handler(req, res) {
   const secret = process.env.SESSION_SECRET || envHash || envPlain;
 
   if (!secret) {
+    console.error('[admin/session] ADMIN_PASSWORD / ADMIN_PASSWORD_HASH not set');
     return res.status(200).json({ authenticated: false });
   }
 
@@ -25,7 +29,7 @@ module.exports = function handler(req, res) {
 
   const authenticated = safeEqual(token, expected);
   return res.status(200).json({ authenticated });
-};
+}
 
 function parseCookie(header, name) {
   for (const part of header.split(';')) {

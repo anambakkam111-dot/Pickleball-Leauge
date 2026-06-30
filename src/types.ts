@@ -44,12 +44,3 @@ export interface PlayerRating {
   notes?: string; // admin-only, never shown on public pages
   updatedAt: string; // ISO 8601
 }
-
-// ─── Admin / Auth Types ────────────────────────────────────────────────────────
-// NOTE: This is casual local-only protection. The hash lives in localStorage
-// and is visible to anyone with browser dev tools. Not real server security.
-
-export interface AdminSettings {
-  passwordHash: string | null;
-  isSetup: boolean;
-}
