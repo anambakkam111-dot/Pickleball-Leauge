@@ -14,6 +14,7 @@ A responsive single-page web app for running a family/friends pickleball doubles
 |-----|----------|
 | `pickleball-league-v1` | `League { teams, matches }` |
 | `pickleball-ratings-v1` | `PlayerRating[]` (private, never shown on public pages) |
+| `pickleball-rating-matches-v1` | `RatingMatch[]` (private, admin-only rating history) |
 
 Admin authentication is fully server-side (see Admin Auth Flow below) — no admin-related key is ever written to localStorage.
 
@@ -29,6 +30,15 @@ interface StandingRow { team, rank, wins, losses, played, pf, pa, pd }
 // Private player ratings (hidden from all public pages)
 type PlayerTier = 'high1' | 'mid1' | 'low1' | 'upper2' | 'mid2' | 'lower2'
 interface PlayerRating { id, name, rating (0-100), tier, notes?, updatedAt }
+
+// Admin-only rating match (feeds the rating algorithm; never touches public League/Match data
+// unless the same result is separately entered as a normal league Match)
+interface RatingMatch {
+  id, date, teamAPlayerIds: [string, string], teamBPlayerIds: [string, string],
+  teamAScore, teamBScore, winnerTeam: 'A' | 'B',
+  preMatchRatings: Record<playerId, number>, ratingChanges: Record<playerId, number>,
+  postMatchRatings: Record<playerId, number>, createdAt
+}
 ```
 
 ## Admin Auth Flow
@@ -59,6 +69,17 @@ The admin password is set via Vercel environment variable, never stored in the b
 - "Regenerate" rotates the bottom array by +1 AND re-shuffles within tiers → fresh pairings each time
 - `pairsToTeams()` strips ratings before saving — ratings never touch public league state
 
+## Rating Match Algorithm (`src/utils/ratingAlgorithm.ts`)
+Admin-only doubles Elo-style rating updater, driven from Admin → Rating Match Entry.
+- `expectedScore(teamRating, opponentRating)` — logistic win probability, 15-point scale
+- `marginMultiplier(margin)` — blowouts move ratings more, capped at 1.5x
+- `winnerWeight` / `loserWeight` — split a team's rating change unevenly between teammates (weaker player gains more on a win, stronger player loses more on a loss), clamped to 0.85–1.15
+- `gapProtectionMultiplier(teammateGap)` — protects a strong player from losing full points when carrying a much weaker partner (>15-point gap), floors at 0.65x
+- `computeRatingChanges(teamA, teamB, teamAScore, teamBScore)` — orchestrates the above into a per-player rating delta
+- `recalculateTiers(players)` — reassigns all six tiers by rating percentile (bottom 10% → lower2 ... top 20% → high1), run after every saved rating match
+- `applyRatingChangesToRoster(ratings, changes)` — applies deltas + recalculates tiers in one step
+- Rating matches are stored separately (`RatingMatch`, `pickleball-rating-matches-v1`) and never affect public `teams`/`matches`/standings unless the same result is also entered as a normal league match
+
 ## Schedule Generation (`src/utils/matchups.ts`)
 - `generateRoundRobin(teams)` — every team plays every other team once
 - `generateCustomSchedule(teams, gamesPerTeam)` — each team plays exactly N games; greedy random selection, 20-attempt best-pick
@@ -82,6 +103,7 @@ src/
     standings.ts             — calculateStandings with proper group-tiebreak logic
     teamGen.ts               — generateBalancedPairs (tier+random), pairsToTeams
     csv.ts                   — matchesToCSV, standingsToCSV, downloadCSV
+    ratingAlgorithm.ts       — doubles Elo-style rating changes + dynamic tier recalculation
   components/
     Nav.tsx                  — 6-tab nav (exports Tab type): home|teams|schedule|standings|history|admin
     DashboardTab.tsx         — Overview: stats, leader, quick links, recent results
@@ -89,7 +111,8 @@ src/
     ScheduleTab.tsx          — Match list grouped by simultaneous round, inline score entry
     StandingsTab.tsx         — Ranked table with wood-theme header
     HistoryTab.tsx           — Completed matches + CSV export
-    AdminPage.tsx            — Server-auth gate + full ratings CRUD (search, sort, add, edit, delete)
+    AdminPage.tsx            — Server-auth gate + sub-nav (Player Ratings / Rating Match Entry) + ratings CRUD (search, sort, add, edit, delete); exports TIERS/TIER_BADGE for reuse
+    RatingMatchEntry.tsx     — Admin-only: pick 4 players + score, preview rating/tier changes, save RatingMatch + saved match history
   App.tsx                    — Root: state, handlers, tab routing
   main.tsx                   — Entry point
   index.css                  — Tailwind directives + wood grain background CSS
@@ -116,6 +139,8 @@ vercel.json                  — Build config + SPA rewrite rule
 - Auto-checks session on tab visit; re-prompts only if cookie is expired
 - Features: view/add/edit/delete player ratings + notes, search, sort by rating/tier/name
 - **Ratings are NEVER passed to or shown on any public tab**
+- Sub-nav within Admin: "Player Ratings" (CRUD above) and "Rating Match Entry"
+- Rating Match Entry: pick Team A (2 players) + Team B (2 players), enter a final score, validated with the same `validateScore` rule as league matches. Shows a before/after preview (rating + tier) via `ratingAlgorithm.ts`, then "Save Rating Match" persists the `RatingMatch` and updates `PlayerRating[]` + recalculates all tiers. No delete yet — rollback isn't implemented, so saved rating matches are permanent history.
 
 ## Deployment (Vercel)
 

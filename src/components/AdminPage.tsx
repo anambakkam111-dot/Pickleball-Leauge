@@ -12,11 +12,12 @@
 // future iteration (e.g. Vercel Postgres, PlanetScale, Supabase).
 
 import { useState, useEffect } from 'react';
-import type { PlayerRating, PlayerTier } from '../types';
+import type { PlayerRating, PlayerTier, RatingMatch } from '../types';
+import RatingMatchEntry from './RatingMatchEntry';
 
 // ─── Tier config ──────────────────────────────────────────────────────────────
 
-const TIERS: { value: PlayerTier; label: string }[] = [
+export const TIERS: { value: PlayerTier; label: string }[] = [
   { value: 'high1', label: 'High Tier 1' },
   { value: 'mid1', label: 'Mid Tier 1' },
   { value: 'low1', label: 'Low Tier 1' },
@@ -29,7 +30,7 @@ const TIER_ORDER: Record<PlayerTier, number> = {
   high1: 1, mid1: 2, low1: 3, upper2: 4, mid2: 5, lower2: 6,
 };
 
-const TIER_BADGE: Record<PlayerTier, string> = {
+export const TIER_BADGE: Record<PlayerTier, string> = {
   high1: 'bg-green-100 text-green-800',
   mid1: 'bg-blue-100 text-blue-800',
   low1: 'bg-sky-100 text-sky-800',
@@ -116,10 +117,9 @@ function LoginGate({ onAuthenticated }: LoginGateProps) {
 interface ManagerProps {
   ratings: PlayerRating[];
   onUpdateRatings: (r: PlayerRating[]) => void;
-  onLock: () => void;
 }
 
-function RatingsManager({ ratings, onUpdateRatings, onLock }: ManagerProps) {
+function RatingsManager({ ratings, onUpdateRatings }: ManagerProps) {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'rating' | 'tier' | 'name'>('rating');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -180,17 +180,9 @@ function RatingsManager({ ratings, onUpdateRatings, onLock }: ManagerProps) {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="font-black text-amber-900 uppercase tracking-wider text-sm">Player Ratings</h2>
-          <p className="text-stone-600 text-xs mt-0.5">{ratings.length} players · private, not shown publicly</p>
-        </div>
-        <button
-          onClick={onLock}
-          className="text-stone-700 hover:text-stone-900 text-xs border-2 border-amber-300 px-3 py-1.5 rounded-xl transition-colors font-bold hover:bg-amber-100"
-        >
-          Logout
-        </button>
+      <div>
+        <h2 className="font-black text-amber-900 uppercase tracking-wider text-sm">Player Ratings</h2>
+        <p className="text-stone-600 text-xs mt-0.5">{ratings.length} players · private, not shown publicly</p>
       </div>
 
       {/* Search + sort */}
@@ -382,11 +374,14 @@ function RatingsManager({ ratings, onUpdateRatings, onLock }: ManagerProps) {
 interface Props {
   ratings: PlayerRating[];
   onUpdateRatings: (r: PlayerRating[]) => void;
+  ratingMatches: RatingMatch[];
+  onSaveRatingMatch: (match: RatingMatch, updatedRatings: PlayerRating[]) => void;
 }
 
-export default function AdminPage({ ratings, onUpdateRatings }: Props) {
+export default function AdminPage({ ratings, onUpdateRatings, ratingMatches, onSaveRatingMatch }: Props) {
   const [isAuthed, setIsAuthed] = useState(false);
   const [checking, setChecking] = useState(true);
+  const [subTab, setSubTab] = useState<'ratings' | 'matches'>('ratings');
 
   // On mount, check if an existing session cookie is still valid.
   // This lets the admin stay logged in for up to 24 hours without re-entering
@@ -424,10 +419,43 @@ export default function AdminPage({ ratings, onUpdateRatings }: Props) {
   }
 
   return (
-    <RatingsManager
-      ratings={ratings}
-      onUpdateRatings={onUpdateRatings}
-      onLock={handleLock}
-    />
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => setSubTab('ratings')}
+            className={`text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-xl transition-colors ${
+              subTab === 'ratings' ? 'bg-amber-800 text-amber-50' : 'text-stone-700 border-2 border-amber-300 hover:bg-amber-100'
+            }`}
+          >
+            Player Ratings
+          </button>
+          <button
+            onClick={() => setSubTab('matches')}
+            className={`text-xs font-black uppercase tracking-wide px-3 py-1.5 rounded-xl transition-colors ${
+              subTab === 'matches' ? 'bg-amber-800 text-amber-50' : 'text-stone-700 border-2 border-amber-300 hover:bg-amber-100'
+            }`}
+          >
+            Rating Match Entry
+          </button>
+        </div>
+        <button
+          onClick={handleLock}
+          className="text-stone-700 hover:text-stone-900 text-xs border-2 border-amber-300 px-3 py-1.5 rounded-xl transition-colors font-bold hover:bg-amber-100"
+        >
+          Logout
+        </button>
+      </div>
+
+      {subTab === 'ratings' ? (
+        <RatingsManager ratings={ratings} onUpdateRatings={onUpdateRatings} />
+      ) : (
+        <RatingMatchEntry
+          ratings={ratings}
+          ratingMatches={ratingMatches}
+          onSaveRatingMatch={onSaveRatingMatch}
+        />
+      )}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { Team, Match, PlayerRating } from './types';
-import { loadLeague, saveLeague, loadRatings, saveRatings } from './storage';
+import type { Team, Match, PlayerRating, RatingMatch } from './types';
+import { loadLeague, saveLeague, loadRatings, saveRatings, loadRatingMatches, saveRatingMatches } from './storage';
 import { SEED_RATINGS } from './data/seedRatings';
 import { generateCustomSchedule } from './utils/matchups';
 import Nav from './components/Nav';
@@ -36,6 +36,13 @@ export default function App() {
   useEffect(() => {
     saveRatings(ratings);
   }, [ratings]);
+
+  const [ratingMatches, setRatingMatches] = useState<RatingMatch[]>(() => loadRatingMatches());
+
+  // Persist rating matches whenever they change
+  useEffect(() => {
+    saveRatingMatches(ratingMatches);
+  }, [ratingMatches]);
 
   const completedCount = matches.filter(m => m.team1Score !== null).length;
 
@@ -77,6 +84,11 @@ export default function App() {
         m.id === matchId ? { ...m, team1Score: null, team2Score: null, playedAt: null } : m
       )
     );
+  };
+
+  const handleSaveRatingMatch = (match: RatingMatch, updatedRatings: PlayerRating[]) => {
+    setRatingMatches(prev => [...prev, match]);
+    setRatings(updatedRatings);
   };
 
   const handleReset = () => {
@@ -140,6 +152,8 @@ export default function App() {
           <AdminPage
             ratings={ratings}
             onUpdateRatings={setRatings}
+            ratingMatches={ratingMatches}
+            onSaveRatingMatch={handleSaveRatingMatch}
           />
         )}
       </main>

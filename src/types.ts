@@ -44,3 +44,22 @@ export interface PlayerRating {
   notes?: string; // admin-only, never shown on public pages
   updatedAt: string; // ISO 8601
 }
+
+// ─── Rating Match Types (admin-only, drives rating/tier updates) ──────────────
+// A "rating match" is separate from a normal league Match — it never touches
+// public standings/history unless the same result is also recorded as a
+// league Match. It exists purely to feed the rating algorithm.
+
+export interface RatingMatch {
+  id: string;
+  date: string; // date the match was played, "YYYY-MM-DD"
+  teamAPlayerIds: [string, string];
+  teamBPlayerIds: [string, string];
+  teamAScore: number;
+  teamBScore: number;
+  winnerTeam: 'A' | 'B';
+  preMatchRatings: Record<string, number>; // playerId -> rating before this match
+  ratingChanges: Record<string, number>; // playerId -> signed rating delta
+  postMatchRatings: Record<string, number>; // playerId -> rating after this match
+  createdAt: string; // ISO 8601, when the record was saved
+}
