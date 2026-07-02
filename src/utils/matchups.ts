@@ -6,6 +6,7 @@ export function generateRoundRobin(teams: Team[]): Match[] {
     for (let j = i + 1; j < teams.length; j++) {
       matches.push({
         id: crypto.randomUUID(),
+        matchType: 'tournament',
         team1Id: teams[i].id,
         team2Id: teams[j].id,
         team1Score: null,
@@ -64,6 +65,7 @@ export function generateCustomSchedule(teams: Team[], gamesPerTeam: number): Mat
 
   return bestPairs.map(([id1, id2]) => ({
     id: crypto.randomUUID(),
+    matchType: 'tournament' as const,
     team1Id: id1,
     team2Id: id2,
     team1Score: null,

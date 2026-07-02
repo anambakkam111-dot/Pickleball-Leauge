@@ -1,5 +1,7 @@
 // ─── Core League Types ────────────────────────────────────────────────────────
 
+export type MatchType = 'practice' | 'tournament';
+
 export interface Team {
   id: string;
   name: string;
@@ -9,6 +11,7 @@ export interface Team {
 
 export interface Match {
   id: string;
+  matchType: 'tournament';
   team1Id: string;
   team2Id: string;
   team1Score: number | null;
@@ -45,21 +48,26 @@ export interface PlayerRating {
   updatedAt: string; // ISO 8601
 }
 
-// ─── Rating Match Types (admin-only, drives rating/tier updates) ──────────────
-// A "rating match" is separate from a normal league Match — it never touches
-// public standings/history unless the same result is also recorded as a
-// league Match. It exists purely to feed the rating algorithm.
+// ─── Practice Match Types ──────────────────────────────────────────────────────
+// A "practice match" is a player-vs-player doubles result recorded from the
+// Practice Games tab. It is separate from the public Team-based league
+// `Match` (which represents tournament play) but both feed the same
+// centralized match history / rating-recalculation pipeline — see
+// `utils/ratingRecalculation.ts`.
 
-export interface RatingMatch {
+export interface PracticeMatch {
   id: string;
+  matchType: 'practice';
   date: string; // date the match was played, "YYYY-MM-DD"
   teamAPlayerIds: [string, string];
   teamBPlayerIds: [string, string];
   teamAScore: number;
   teamBScore: number;
   winnerTeam: 'A' | 'B';
-  preMatchRatings: Record<string, number>; // playerId -> rating before this match
-  ratingChanges: Record<string, number>; // playerId -> signed rating delta
-  postMatchRatings: Record<string, number>; // playerId -> rating after this match
-  createdAt: string; // ISO 8601, when the record was saved
+  notes?: string;
+  createdAt: string; // ISO 8601, when the record was first saved
+  updatedAt: string; // ISO 8601, last edited
 }
+
+// Union of every match shape that feeds the centralized rating pipeline.
+export type AnyMatch = Match | PracticeMatch;

@@ -5,41 +5,41 @@
 @layer base {
   body {
     margin: 0;
-    /* Warm pine wood plank base */
-    background-color: #b8894f;
+    /* Dark espresso wood plank base — refined private-club look, not rustic */
+    background-color: #17110d;
     background-image:
       /* Horizontal plank dividers — the main "board" effect */
       repeating-linear-gradient(
         180deg,
         transparent 0px,
         transparent 96px,
-        rgba(0, 0, 0, 0.07) 96px,
-        rgba(0, 0, 0, 0.07) 100px,
-        rgba(255, 230, 180, 0.06) 100px,
-        rgba(255, 230, 180, 0.06) 101px
+        rgba(0, 0, 0, 0.35) 96px,
+        rgba(0, 0, 0, 0.35) 100px,
+        rgba(255, 210, 140, 0.02) 100px,
+        rgba(255, 210, 140, 0.02) 101px
       ),
       /* Vertical wood grain — fine lines */
       repeating-linear-gradient(
         91deg,
         transparent 0px,
         transparent 10px,
-        rgba(0, 0, 0, 0.018) 10px,
-        rgba(0, 0, 0, 0.018) 11px
+        rgba(0, 0, 0, 0.12) 10px,
+        rgba(0, 0, 0, 0.12) 11px
       ),
       repeating-linear-gradient(
         88.5deg,
         transparent 0px,
         transparent 18px,
-        rgba(80, 40, 5, 0.022) 18px,
-        rgba(80, 40, 5, 0.022) 19px
+        rgba(0, 0, 0, 0.1) 18px,
+        rgba(0, 0, 0, 0.1) 19px
       ),
       /* Subtle diagonal grain variation */
       repeating-linear-gradient(
         93deg,
         transparent 0px,
         transparent 35px,
-        rgba(0, 0, 0, 0.01) 35px,
-        rgba(0, 0, 0, 0.01) 36px
+        rgba(0, 0, 0, 0.06) 35px,
+        rgba(0, 0, 0, 0.06) 36px
       );
     min-height: 100vh;
   }
@@ -50,15 +50,15 @@
 }
 
 @layer utilities {
-  /* Parchment card texture — subtle diagonal lines like aged paper */
+  /* Subtle dark diagonal grain texture for hero/CTA panels */
   .card-texture {
     background-image:
       repeating-linear-gradient(
         135deg,
         transparent 0px,
         transparent 8px,
-        rgba(120, 70, 10, 0.025) 8px,
-        rgba(120, 70, 10, 0.025) 9px
+        rgba(255, 200, 110, 0.02) 8px,
+        rgba(255, 200, 110, 0.02) 9px
       );
   }
 }
