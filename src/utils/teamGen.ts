@@ -60,7 +60,7 @@ export function generateBalancedPairs(players: PlayerRating[], offset = 0): Gene
   ];
 
   return top
-    .map((p1, idx) => ({ p1, p2: rotated[idx], combinedRating: p1.rating + rotated[idx].rating }))
+    .map((p1, idx) => ({ p1, p2: rotated[idx], combinedRating: p1.currentElo + rotated[idx].currentElo }))
     .sort((a, b) => b.combinedRating - a.combinedRating);
 }
 

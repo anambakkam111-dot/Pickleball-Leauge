@@ -1,4 +1,5 @@
 import type { League, Match, PlayerRating, PracticeMatch } from './types';
+import { migratePlayerRatings } from './utils/ratingRecalculation';
 
 const KEYS = {
   league: 'pickleball-league-v1',
@@ -31,11 +32,15 @@ export function saveLeague(league: League): void {
 
 // ─── Player Ratings (central player database) ─────────────────────────────────
 
+// Old 0-100 `rating` players are migrated to open-ended Elo (`baseElo`/
+// `currentElo`) on load — see migratePlayerRatings in utils/ratingRecalculation.ts.
+// This preserves names, tiers, and notes; App's recalculation effect then
+// replays match history on top of the migrated baseElo.
 export function loadRatings(): PlayerRating[] {
   try {
     const raw = localStorage.getItem(KEYS.ratings);
     if (!raw) return [];
-    return JSON.parse(raw) as PlayerRating[];
+    return migratePlayerRatings(JSON.parse(raw));
   } catch {
     return [];
   }

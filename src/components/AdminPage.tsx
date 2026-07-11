@@ -13,6 +13,7 @@
 
 import { useState, useEffect } from 'react';
 import type { PlayerRating, PlayerTier } from '../types';
+import { createNewPlayer } from '../utils/ratingRecalculation';
 
 // ─── Tier config ──────────────────────────────────────────────────────────────
 
@@ -120,58 +121,67 @@ interface ManagerProps {
 
 function RatingsManager({ ratings, onUpdateRatings }: ManagerProps) {
   const [search, setSearch] = useState('');
-  const [sortBy, setSortBy] = useState<'rating' | 'tier' | 'name'>('rating');
+  const [sortBy, setSortBy] = useState<'elo' | 'tier' | 'name'>('elo');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<PlayerRating>>({});
+  const [editForm, setEditForm] = useState<{ name: string; baseElo: string; notes: string }>({ name: '', baseElo: '', notes: '' });
   const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState<{ name: string; rating: string; tier: PlayerTier; notes: string }>({
-    name: '', rating: '', tier: 'mid1', notes: '',
+  const [addForm, setAddForm] = useState<{ name: string; rating: string; notes: string }>({
+    name: '', rating: '', notes: '',
   });
   const [addError, setAddError] = useState('');
+
+  // Rank is always relative to the full roster sorted by current Elo, not the
+  // filtered/re-sorted view below — otherwise rank numbers would shuffle
+  // whenever the admin searches or changes the sort dropdown.
+  const rankById = new Map(
+    [...ratings]
+      .sort((a, b) => b.currentElo - a.currentElo)
+      .map((r, idx) => [r.id, idx + 1] as const)
+  );
 
   const sorted = [...ratings]
     .filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
-      if (sortBy === 'rating') return b.rating - a.rating;
-      if (sortBy === 'tier') return TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || b.rating - a.rating;
+      if (sortBy === 'elo') return b.currentElo - a.currentElo;
+      if (sortBy === 'tier') return TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || b.currentElo - a.currentElo;
       return a.name.localeCompare(b.name);
     });
 
+  // Editing baseElo (or adding/deleting a player) changes the recalculation
+  // baseline — App's centralized effect detects the baseElo change and
+  // immediately replays match history on top of it.
   const handleSaveEdit = () => {
     if (!editingId) return;
-    const rating = Number(editForm.rating);
-    if (isNaN(rating) || rating < 0 || rating > 100) return;
+    const baseElo = Number(editForm.baseElo);
+    if (!editForm.name.trim() || isNaN(baseElo)) return;
     onUpdateRatings(ratings.map(r =>
       r.id === editingId
-        ? { ...r, ...editForm, rating, updatedAt: new Date().toISOString() }
+        ? { ...r, name: editForm.name.trim(), baseElo, notes: editForm.notes.trim() || undefined, updatedAt: new Date().toISOString() }
         : r
     ));
     setEditingId(null);
   };
 
   const handleDelete = (id: string) => {
-    if (!window.confirm('Delete this player rating?')) return;
+    if (!window.confirm('Delete this player rating? Any past matches involving them will be skipped in rating recalculation.')) return;
     onUpdateRatings(ratings.filter(r => r.id !== id));
   };
 
   const handleAdd = () => {
-    const rating = Number(addForm.rating);
     if (!addForm.name.trim()) { setAddError('Name is required'); return; }
-    if (isNaN(rating) || rating < 0 || rating > 100) { setAddError('Rating must be 0–100'); return; }
     if (ratings.some(r => r.name.toLowerCase() === addForm.name.trim().toLowerCase())) {
       setAddError('Player already exists');
       return;
     }
-    const newPlayer: PlayerRating = {
-      id: crypto.randomUUID(),
+    const ratingInput = addForm.rating.trim() === '' ? undefined : Number(addForm.rating);
+    if (ratingInput !== undefined && isNaN(ratingInput)) { setAddError('Rating must be a number'); return; }
+    const newPlayer = createNewPlayer({
       name: addForm.name.trim(),
-      rating,
-      tier: addForm.tier,
+      ratingInput,
       notes: addForm.notes.trim() || undefined,
-      updatedAt: new Date().toISOString(),
-    };
+    });
     onUpdateRatings([...ratings, newPlayer]);
-    setAddForm({ name: '', rating: '', tier: 'mid1', notes: '' });
+    setAddForm({ name: '', rating: '', notes: '' });
     setAddError('');
     setShowAdd(false);
   };
@@ -194,10 +204,10 @@ function RatingsManager({ ratings, onUpdateRatings }: ManagerProps) {
         />
         <select
           value={sortBy}
-          onChange={e => setSortBy(e.target.value as 'rating' | 'tier' | 'name')}
+          onChange={e => setSortBy(e.target.value as 'elo' | 'tier' | 'name')}
           className="border border-stone-600 rounded-xl px-3 py-2 text-sm bg-stone-950 text-stone-100 focus:outline-none focus:ring-2 focus:ring-yellow-600"
         >
-          <option value="rating">Sort: Rating</option>
+          <option value="elo">Sort: Current Elo</option>
           <option value="tier">Sort: Tier</option>
           <option value="name">Sort: Name</option>
         </select>
@@ -216,18 +226,11 @@ function RatingsManager({ ratings, onUpdateRatings }: ManagerProps) {
             />
             <input
               type="number"
-              className="border border-stone-600 rounded-xl px-3 py-2 text-sm bg-stone-950 text-stone-100 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-yellow-600"
-              placeholder="Rating (0–100)"
+              className="col-span-2 border border-stone-600 rounded-xl px-3 py-2 text-sm bg-stone-950 text-stone-100 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-yellow-600"
+              placeholder="Rating — 0–100 preliminary or Elo above 100 (defaults to 1500)"
               value={addForm.rating}
               onChange={e => { setAddForm(p => ({ ...p, rating: e.target.value })); setAddError(''); }}
             />
-            <select
-              value={addForm.tier}
-              onChange={e => setAddForm(p => ({ ...p, tier: e.target.value as PlayerTier }))}
-              className="border border-stone-600 rounded-xl px-3 py-2 text-sm bg-stone-950 text-stone-100 focus:outline-none focus:ring-2 focus:ring-yellow-600"
-            >
-              {TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
             <input
               className="col-span-2 border border-stone-600 rounded-xl px-3 py-2 text-sm bg-stone-950 text-stone-100 placeholder-stone-500 focus:outline-none focus:ring-2 focus:ring-yellow-600"
               placeholder="Notes (optional) — admin only"
@@ -268,47 +271,49 @@ function RatingsManager({ ratings, onUpdateRatings }: ManagerProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-stone-900 text-stone-300">
+                <th className="text-center px-3 py-2.5 font-black text-xs uppercase tracking-widest">#</th>
                 <th className="text-left px-4 py-2.5 font-black text-xs uppercase tracking-widest">Player</th>
-                <th className="text-center px-3 py-2.5 font-black text-xs uppercase tracking-widest">Rating</th>
+                <th className="text-center px-3 py-2.5 font-black text-xs uppercase tracking-widest hidden sm:table-cell">Base Elo</th>
+                <th className="text-center px-3 py-2.5 font-black text-xs uppercase tracking-widest">Current Elo</th>
+                <th className="text-center px-3 py-2.5 font-black text-xs uppercase tracking-widest hidden md:table-cell">Games</th>
                 <th className="text-center px-3 py-2.5 font-black text-xs uppercase tracking-widest hidden sm:table-cell">Tier</th>
                 <th className="px-3 py-2.5 w-20"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-700">
-              {sorted.map(player => (
+              {sorted.map(player => {
+                const lastChange = player.ratingHistory?.[player.ratingHistory.length - 1];
+                return (
                 <tr key={player.id} className="hover:bg-stone-700/40 transition-colors">
                   {editingId === player.id ? (
                     <>
+                      <td className="px-3 py-2 text-center text-stone-500 text-xs font-bold">{rankById.get(player.id)}</td>
                       <td className="px-3 py-2">
                         <input
                           className="w-full border border-stone-600 rounded-lg px-2 py-1 text-sm bg-stone-950 text-stone-100 focus:outline-none focus:ring-1 focus:ring-yellow-600"
-                          value={editForm.name ?? player.name}
+                          value={editForm.name}
                           onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                         />
                         <input
                           className="mt-1 w-full border border-stone-700 rounded-lg px-2 py-1 text-xs bg-stone-950 text-stone-300 placeholder-stone-500 focus:outline-none focus:ring-1 focus:ring-yellow-600"
                           placeholder="Notes (optional)"
-                          value={editForm.notes ?? ''}
+                          value={editForm.notes}
                           onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
                         />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-2 hidden sm:table-cell">
                         <input
                           type="number"
-                          className="w-16 border border-stone-600 rounded-lg px-2 py-1 text-sm text-center bg-stone-950 text-stone-100 focus:outline-none focus:ring-1 focus:ring-yellow-600"
-                          value={editForm.rating ?? player.rating}
-                          onChange={e => setEditForm(f => ({ ...f, rating: Number(e.target.value) }))}
+                          className="w-20 border border-stone-600 rounded-lg px-2 py-1 text-sm text-center bg-stone-950 text-stone-100 focus:outline-none focus:ring-1 focus:ring-yellow-600"
+                          value={editForm.baseElo}
+                          onChange={e => setEditForm(f => ({ ...f, baseElo: e.target.value }))}
                         />
                       </td>
-                      <td className="px-3 py-2 hidden sm:table-cell">
-                        <select
-                          value={editForm.tier ?? player.tier}
-                          onChange={e => setEditForm(f => ({ ...f, tier: e.target.value as PlayerTier }))}
-                          className="border border-stone-600 rounded-lg px-2 py-1 text-xs bg-stone-950 text-stone-100 focus:outline-none focus:ring-1 focus:ring-yellow-600"
-                        >
-                          {TIERS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
+                      <td className="px-3 py-2 text-center text-stone-500 text-xs">
+                        recalculates on save
                       </td>
+                      <td className="px-3 py-2 hidden md:table-cell" />
+                      <td className="px-3 py-2 hidden sm:table-cell" />
                       <td className="px-3 py-2">
                         <div className="flex gap-1.5">
                           <button onClick={handleSaveEdit} className="text-xs text-emerald-400 font-black hover:underline">Save</button>
@@ -318,13 +323,23 @@ function RatingsManager({ ratings, onUpdateRatings }: ManagerProps) {
                     </>
                   ) : (
                     <>
+                      <td className="px-3 py-3 text-center text-stone-500 text-xs font-bold">{rankById.get(player.id)}</td>
                       <td className="px-4 py-3">
                         <p className="font-bold text-stone-100">{player.name}</p>
                         {player.notes && (
                           <p className="text-xs text-stone-500 mt-0.5 italic">{player.notes}</p>
                         )}
                       </td>
-                      <td className="px-3 py-3 text-center font-black text-stone-100">{player.rating}</td>
+                      <td className="px-3 py-3 text-center text-stone-400 hidden sm:table-cell">{Math.round(player.baseElo)}</td>
+                      <td className="px-3 py-3 text-center font-black text-stone-100">
+                        {Math.round(player.currentElo)}
+                        {lastChange && (
+                          <span className={`ml-1.5 text-xs font-semibold ${lastChange.finalDelta >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+                            {lastChange.finalDelta >= 0 ? '+' : ''}{Math.round(lastChange.finalDelta)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center text-stone-400 hidden md:table-cell">{player.gamesPlayed}</td>
                       <td className="px-3 py-3 text-center hidden sm:table-cell">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${TIER_BADGE[player.tier]}`}>
                           {TIERS.find(t => t.value === player.tier)?.label}
@@ -335,7 +350,7 @@ function RatingsManager({ ratings, onUpdateRatings }: ManagerProps) {
                           <button
                             onClick={() => {
                               setEditingId(player.id);
-                              setEditForm({ name: player.name, rating: player.rating, tier: player.tier, notes: player.notes ?? '' });
+                              setEditForm({ name: player.name, baseElo: String(Math.round(player.baseElo)), notes: player.notes ?? '' });
                             }}
                             className="text-xs text-stone-300 hover:text-stone-100 font-semibold"
                           >
@@ -352,10 +367,11 @@ function RatingsManager({ ratings, onUpdateRatings }: ManagerProps) {
                     </>
                   )}
                 </tr>
-              ))}
+                );
+              })}
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="text-center py-8 text-stone-400 text-sm">
+                  <td colSpan={7} className="text-center py-8 text-stone-400 text-sm">
                     No players match your search.
                   </td>
                 </tr>

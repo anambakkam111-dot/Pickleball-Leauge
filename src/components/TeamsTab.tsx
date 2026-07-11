@@ -8,7 +8,7 @@ import type { GeneratedPair } from '../utils/teamGen';
 // Pairs all ratings; drops the lowest-rated player if the count is odd.
 // Ratings are used internally only — never shown in the output cards.
 function buildPairs(players: PlayerRating[], off: number): GeneratedPair[] {
-  const sorted = [...players].sort((a, b) => b.rating - a.rating);
+  const sorted = [...players].sort((a, b) => b.currentElo - a.currentElo);
   const pool = sorted.length % 2 !== 0 ? sorted.slice(0, sorted.length - 1) : sorted;
   if (pool.length < 2) return [];
   return generateBalancedPairs(pool, off);
@@ -42,7 +42,7 @@ function TeamBuilder({ ratings, onSave, onCancel }: BuilderProps) {
     const dstPlayer = newPairs[pairIdx][slot];
     newPairs[swapSrc.pairIdx][swapSrc.slot] = dstPlayer;
     newPairs[pairIdx][slot] = srcPlayer;
-    newPairs.forEach(pair => { pair.combinedRating = pair.p1.rating + pair.p2.rating; });
+    newPairs.forEach(pair => { pair.combinedRating = pair.p1.currentElo + pair.p2.currentElo; });
     setPairs(newPairs);
     setSwapSrc(null);
   };

@@ -1,7 +1,20 @@
 import type { PlayerRating, PlayerTier } from '../types';
+import { toEloScale } from '../utils/ratingRecalculation';
 
-function p(name: string, rating: number, tier: PlayerTier): PlayerRating {
-  return { id: crypto.randomUUID(), name, rating, tier, updatedAt: new Date().toISOString() };
+// `preliminaryRating` is the old 0–100 scale; converted to open-ended Elo via
+// the same formula used to migrate existing localStorage data.
+function p(name: string, preliminaryRating: number, tier: PlayerTier): PlayerRating {
+  const baseElo = toEloScale(preliminaryRating);
+  return {
+    id: crypto.randomUUID(),
+    name,
+    baseElo,
+    currentElo: baseElo,
+    gamesPlayed: 0,
+    tier,
+    updatedAt: new Date().toISOString(),
+    originalPreliminaryRating: preliminaryRating,
+  };
 }
 
 export const SEED_RATINGS: PlayerRating[] = [

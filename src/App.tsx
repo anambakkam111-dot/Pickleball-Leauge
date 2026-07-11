@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { Team, Match, PlayerRating, PracticeMatch } from './types';
 import {
   loadLeague, saveLeague,
@@ -52,14 +52,22 @@ export default function App() {
   }, [practiceMatches]);
 
   // ─── Centralized rating recalculation ────────────────────────────────────────
-  // Runs any time the match history (tournament or practice) changes — i.e. on
-  // every create/edit/delete of either match type. Currently a no-op
-  // placeholder (see utils/ratingRecalculation.ts) that preserves whatever
-  // ratings/tiers are set manually in Admin.
+  // Runs the full baseline-replay Elo engine (utils/ratingRecalculation.ts)
+  // any time match history changes (create/edit/delete of a practice or
+  // tournament match) OR any player's baseElo/roster changes (Admin add,
+  // delete, or edit baseElo). `ratingsBaselineKey` — not `ratings` itself —
+  // is the dependency: it only changes on id/baseElo changes, not on
+  // currentElo/gamesPlayed/tier, which is what this effect writes. Depending
+  // on `ratings` directly would re-trigger on its own output and loop forever.
+  const ratingsBaselineKey = useMemo(
+    () => ratings.map(r => `${r.id}:${r.baseElo}`).sort().join('|'),
+    [ratings]
+  );
+
   useEffect(() => {
-    setRatings(prev => recalculatePlayerRatings([...matches, ...practiceMatches], prev));
+    setRatings(prev => recalculatePlayerRatings([...matches, ...practiceMatches], prev, teams));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matches, practiceMatches]);
+  }, [matches, practiceMatches, teams, ratingsBaselineKey]);
 
   const completedCount = matches.filter(m => m.team1Score !== null).length;
 
